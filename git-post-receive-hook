@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# This script is originally copied from
+# http://trac.v2.nl/changeset/4827/labdev/trac/scripts/git-post-receive-hook
+#
+
+PROJECT="foo"
+REPOS="git:www-data:/var/git/$PROJECT.git:"
+TRAC_PATH=/usr/local/src/Trac-0.11.1.ja1
+TRAC_ENV="/var/trac/$PROJECT"
+TRAC_URL="http://YOURHOST/$PROJECT"
+LOG=/var/log/git-post-receive-hook.log
+
+while read oval nval ref ; do
+    echo "*** $oval $nval $ref" >> $LOG
+    if expr "$oval" : '0*$' >/dev/null
+    then
+        git-rev-list "$nval"
+    else
+        git-rev-list "$nval" "^$oval"
+    fi | while read com ; do
+	echo "   *** $com"
+	MSG=$(git-rev-list --pretty -n 1 $com)
+	AUTHOR=$(echo $MSG | sed '/^Author/{s/^Author: //;p};d')
+	MSG=$(echo $MSG | awk 'BEGIN{h=1} h && /^$/ { header=0 } !h{sub(/^    /,"");print}')
+	sudo -u www-data $TRAC_PATH/contrib/trac-post-commit-hook \
+	    -p "$TRAC_ENV" \
+	    -r "$REPOS:$com" \
+	    -u "$AUTHOR" \
+	    -m "$MSG" \
+	    -s "$TRAC_URL" >> $LOG 2>&1
+    done
+done
+
+exit 0
