@@ -1,35 +1,49 @@
 #!/bin/sh
 
-# This script is originally copied from
-# http://trac.v2.nl/changeset/4827/labdev/trac/scripts/git-post-receive-hook
+# The original script is available at
+#   http://trac-hacks.org/browser/timingandestimationplugin/branches/trac0.11/scripts/git-post-receive
 #
 
-PROJECT="foo"
-REPOS="git:www-data:/var/git/$PROJECT.git:"
-TRAC_PATH=/usr/local/src/Trac-0.11.1.ja1
-TRAC_ENV="/var/trac/$PROJECT"
-TRAC_URL="http://YOURHOST/$PROJECT"
-LOG=/var/log/git-post-receive-hook.log
+#
+# An example hook script for the post-receive event
+#
+# This script is run after receive-pack has accepted a pack and the
+# repository has been updated.  It is passed arguments in through stdin
+# in the form
+#  <oldrev> <newrev> <refname>
+# For example:
+#  aa453216d1b3e49e7f6f98441fa56946ddcd6a20 68f7abf4e6f922807889f52bc043ecd31b79f814 refs/heads/master
+#
+# see contrib/hooks/ for an sample, or uncomment the next line (on debian)
+#
+
+TRAC_ENV="/var/trac/YOURPROJECT"
+POST_COMMIT="/usr/local/src/Trac-0.11.1.ja1/contrib/trac-post-commit-hook"
+LOG="/dev/null"
+echo "in git post commit: $TRAC_ENV" | cat >>$LOG
 
 while read oval nval ref ; do
-    echo "*** $oval $nval $ref" >> $LOG
     if expr "$oval" : '0*$' >/dev/null
     then
-        git-rev-list "$nval"
+        git-rev-list --reverse "$nval"
     else
-        git-rev-list "$nval" "^$oval"
+        git-rev-list --reverse "$nval" "^$oval"
     fi | while read com ; do
-	echo "   *** $com"
-	MSG=$(git-rev-list --pretty -n 1 $com)
-	AUTHOR=$(echo $MSG | sed '/^Author/{s/^Author: //;p};d')
-	MSG=$(echo $MSG | awk 'BEGIN{h=1} h && /^$/ { header=0 } !h{sub(/^    /,"");print}')
-	sudo -u www-data $TRAC_PATH/contrib/trac-post-commit-hook \
-	    -p "$TRAC_ENV" \
-	    -r "$REPOS:$com" \
-	    -u "$AUTHOR" \
-	    -m "$MSG" \
-	    -s "$TRAC_URL" >> $LOG 2>&1
+        echo "posting a comment to trac" | cat >>$LOG
+        echo "  *** $com"
+        AUTHOR="$(git-rev-list -n 1 $com --pretty=format:%an | sed '1d')" \
+        MSG="$(git-rev-list -n 1 $com --pretty=medium | sed '1,3d;s:^   ::')"
+        echo "author ... $AUTHOR"
+        echo "msg ... $MSG"
+        sleep 0.1
+        sudo -u www-data $POST_COMMIT \
+            -p "$TRAC_ENV" \
+            -r "$com" \
+            -u "$AUTHOR" \
+            -m "$MSG" \
+        echo "DONE posting a comment to trac" | cat >>$LOG
     done
 done
 
+echo "Done with trac commit hook: $TRAC_ENV" | cat >>$LOG
 exit 0
