@@ -40,7 +40,7 @@ while read oval nval ref ; do
             -p "$TRAC_ENV" \
             -r "$com" \
             -u "$AUTHOR" \
-            -m "$MSG" \
+            -m "$MSG"
         echo "DONE posting a comment to trac" | cat >>$LOG
     done
 done
